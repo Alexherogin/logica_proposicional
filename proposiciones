@@ -1,0 +1,129 @@
+import re
+import tkinter as tk
+from tkinter import ttk
+import itertools
+
+class Nodo:
+    def __init__(self, valor, izquierda=None, derecha=None):
+        self.valor = valor
+        self.izquierda = izquierda
+        self.derecha = derecha
+
+def descomponer_proposicion(proposicion):
+    partes = re.split(r'\s+(y|and|o|or)\s+', proposicion)
+    proposiciones_simples = []
+    operador = None
+
+    for parte in partes:
+        if parte.lower() in ["y", "and"]:
+            operador = "AND"
+        elif parte.lower() in ["o", "or"]:
+            operador = "OR"
+        else:
+            if len(proposiciones_simples) < 2:
+                proposiciones_simples.append(parte.strip())
+
+    return proposiciones_simples, operador
+
+def construir_arbol(proposiciones_simples, operador):
+    if operador == "AND":
+        return Nodo(proposiciones_simples[0], 
+                    Nodo("Verdadero", Nodo(proposiciones_simples[1], Nodo("Verdadero"), Nodo("Falso"))),
+                    Nodo("Falso", Nodo(proposiciones_simples[1], Nodo("Verdadero"), Nodo("Falso"))))
+    elif operador == "OR":
+        return Nodo(proposiciones_simples[0], 
+                    Nodo("Verdadero", Nodo(proposiciones_simples[1], Nodo("Verdadero"), Nodo("Falso"))),
+                    Nodo("Falso", Nodo(proposiciones_simples[1], Nodo("Verdadero"), Nodo("Falso"))))
+    return None
+
+def evaluar_proposicion(proposiciones_simples, operador):
+    valores = []
+    for proposicion in proposiciones_simples:
+        while True:
+            valor = input(f"¿Es '{proposicion}' verdadera o falsa? (true/false): ").strip().lower()
+            if valor in ["true", "false"]:
+                valores.append(valor == "true")
+                break
+            else:
+                print("Por favor, ingresa 'true' o 'false'.")
+
+    if operador == "AND":
+        resultado = all(valores)
+    elif operador == "OR":
+        resultado = any(valores)
+    else:
+        resultado = None
+
+    return resultado, valores
+
+def imprimir_arbol(nodo, nivel=0):
+    if nodo is not None:
+        imprimir_arbol(nodo.derecha, nivel + 1)
+        print(' ' * 4 * nivel + '-> ' + nodo.valor)
+        imprimir_arbol(nodo.izquierda, nivel + 1)
+
+def dibujar_arbol(canvas, nodo, x, y, dx, dy, valores, nivel=0):
+    if nodo is not None:
+        color = "red" if (nivel == 0 and valores[0]) else "blue" if (nivel == 1) else "black"
+        canvas.create_text(x, y, text=nodo.valor, font=("Arial", 12, "bold"), fill=color)
+        if nodo.izquierda:
+            canvas.create_line(x, y, x - dx, y + dy, arrow=tk.LAST, fill="red" if (nivel == 0 and valores[0]) else "blue" if (nivel == 1 and valores[1]) else "green" if (nivel == 2 and valores[1]) else "black")
+            dibujar_arbol(canvas, nodo.izquierda, x - dx, y + dy, dx // 2, dy, valores, nivel + 1)
+        if nodo.derecha:
+            canvas.create_line(x, y, x + dx, y + dy, arrow=tk.LAST, fill="red" if (nivel == 0 and not valores[0]) else "blue" if (nivel == 2 and not valores[1]) else "green" if (nivel == 1 and valores[1]) else "black")
+            dibujar_arbol(canvas, nodo.derecha, x + dx, y + dy, dx // 2, dy, valores, nivel + 1)
+
+def mostrar_arbol_grafico(arbol, valores):
+    ventana = tk.Tk()
+    ventana.title("Árbol de Estados")
+    canvas = tk.Canvas(ventana, width=800, height=600, bg="white")
+    canvas.pack()
+    dibujar_arbol(canvas, arbol, 400, 50, 200, 100, valores)
+    ventana.mainloop()
+
+def generar_tabla_verdad(proposiciones_simples, operador):
+    variables = ['p', 'q', 'r', 's', 't']
+    combinations = list(itertools.product([True, False], repeat=len(variables)))
+
+    def evaluate_proposition(p, q, r, s, t):
+        return ((p and q) or (r and (not s) or t)) and (not q)
+
+    truth_table = []
+    for combination in combinations:
+        p, q, r, s, t = combination
+        result = evaluate_proposition(p, q, r, s, t)
+        truth_table.append((p, q, r, s, t, result))
+
+    return truth_table
+
+def mostrar_tabla_verdad(truth_table):
+    ventana = tk.Tk()
+    ventana.title("Tabla de Verdad")
+
+    tree = ttk.Treeview(ventana, columns=['p', 'q', 'r', 's', 't', 'Resultado'], show='headings')
+    for var in ['p', 'q', 'r', 's', 't', 'Resultado']:
+        tree.heading(var, text=var)
+
+    for row in truth_table:
+        tree.insert('', tk.END, values=row)
+
+    tree.pack(expand=True, fill='both')
+    ventana.mainloop()
+
+# Ejemplo de uso
+proposicion = input("Ingresa una proposición compuesta: ")
+proposiciones_simples, operador = descomponer_proposicion(proposicion)
+
+resultado, valores = evaluar_proposicion(proposiciones_simples, operador)
+
+# Imprimir el resultado junto con el tipo de operador
+if operador:
+    print(f"La proposición compuesta es una operación '{operador}' y es:", "verdadera" if resultado else "falsa")
+    arbol = construir_arbol(proposiciones_simples, operador)
+    print("\nÁrbol de Estados:")
+    imprimir_arbol(arbol)
+    mostrar_arbol_grafico(arbol, valores)
+
+    # Generar y mostrar la tabla de verdad
+    truth_table = generar_tabla_verdad(proposiciones_simples, operador)
+    mostrar_tabla_verdad(truth_table)
